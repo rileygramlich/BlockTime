@@ -10,5 +10,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // Console log for debugging
         console.log("Button clicked. Message displayed.");
+        
     });
 });
