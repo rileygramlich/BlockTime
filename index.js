@@ -1,208 +1,262 @@
-let nextTaskNumber = 1; // used for numbering the tasks
+// State
+let tasks = [];
+let isEditing = false;
+let editingId = null;
 
+// DOM Elements
+const taskForm = document.getElementById("task-form");
+const taskListContainer = document.getElementById("task-list-container");
+const taskCountBadge = document.getElementById("task-count");
+const formTitle = document.getElementById("form-title");
+const submitBtn = document.getElementById("add-task-btn");
+const cancelBtn = document.getElementById("cancel-btn");
+const themeToggle = document.getElementById("theme-toggle");
+const display = document.getElementById("message-display");
+const generateBtn = document.getElementById("generate-btn");
+
+// ================= INITIALIZATION =================
 document.addEventListener("DOMContentLoaded", () => {
-    // Select DOM elements
-    const button = document.getElementById("hello-btn");
-    const display = document.getElementById("message-display");
+    // 1. Load Theme
+    const savedTheme = localStorage.getItem("theme") || "light";
+    document.documentElement.setAttribute("data-theme", savedTheme);
 
-    // currently creates a task when the button is clicked
-    // this button is currently just being used for debugging
-    button.addEventListener("click", () => {
-       const taskInput = readTaskInputs();
-       const taskInputValidation = validateTaskInputs(taskInput);
+    // 2. Mock Data (Optional - remove for production)
+    // tasks.push(createTask({name: "Math HW", hoursTotal: 2, dueDate: "2026-02-15", gradePercent: 10, effort: "heavy"}));
 
-       // do not create a task if invalid inputs
-       if (taskInputValidation.ok === false) {
-        display.textContent = taskInputValidation.errorMessage;
-        display.classList.add("visible");
-        return;
-       }
-
-       // tests
-       const task = createTask(taskInputValidation);
-       console.log("Created task: ", task)  
-
-       const schedule = createEmptySchedule("2026-02-11"); // TODO: replace with user today date input
-
-       tryAddBlock(schedule, 0, {taskId: "t1", taskName: "Math HW", hoursPlanned: 2});
-       tryAddBlock(schedule, 0, {taskId: "t2", taskName: "COMP HW", hoursPlanned: 2});
-
-       const thirdAdd = tryAddBlock(schedule, 0, {taskId: "t3", taskName: "GNED HW", hoursPlanned: 2});
-       console.log("Third add should be false", thirdAdd);
-       console.log("Schedule:",schedule);
-
-       display.textContent = "Created task " + task.id;
-       display.classList.add("visible");
-    });
+    renderTaskList();
 });
 
-//=================================== Task Creation + Validation ===================================
+// ================= EVENT LISTENERS =================
 
-// reads inputs and returns strings
-function readTaskInputs() {
-    const testName = document.getElementById("task-name");
+// Add / Update Task
+submitBtn.addEventListener("click", (e) => {
+    e.preventDefault(); // Prevent form submission
 
-    // Test data. Remove this once input fields are added
-    if (testName === null) {
-        return {
-        name: "Math HW",
-        hoursTotal: 5,
-        gradePercent: 10,
-        effort: "heavy",
-        dueDate: "2026-02-01"
-        };
+    // 1. Read & Validate
+    const rawInput = readTaskInputs();
+    const validation = validateTaskInputs(rawInput);
+
+    if (!validation.ok) {
+        showMessage(validation.errorMessage, "error");
+        return;
     }
 
+    if (isEditing) {
+        // UPDATE existing task
+        updateTask(editingId, validation);
+        showMessage("Task updated successfully.", "success");
+    } else {
+        // CREATE new task
+        const newTask = createTask(validation);
+        tasks.push(newTask);
+        showMessage("Task added to list.", "success");
+    }
+
+    // 2. Render & Cleanup
+    renderTaskList();
+    resetForm();
+});
+
+// Cancel Edit
+cancelBtn.addEventListener("click", resetForm);
+
+// Toggle Theme
+themeToggle.addEventListener("click", () => {
+    const html = document.documentElement;
+    const current = html.getAttribute("data-theme");
+    const next = current === "light" ? "dark" : "light";
+
+    html.setAttribute("data-theme", next);
+    localStorage.setItem("theme", next);
+});
+
+// Generate Schedule (Stub)
+generateBtn.addEventListener("click", () => {
+    if (tasks.length === 0) {
+        showMessage("Please add tasks before generating a schedule.", "error");
+        return;
+    }
+    showMessage(
+        `Generating schedule for ${tasks.length} tasks... (Check Console)`,
+        "success",
+    );
+
+    // Logic from previous version would go here
+    const schedule = createEmptySchedule("2026-02-02");
+    // naive allocation for demo
+    tasks.forEach((t, i) => {
+        tryAddBlock(schedule, i % 7, {
+            taskId: t.id,
+            taskName: t.name,
+            hoursPlanned: Math.min(2, t.hoursRemaining),
+        });
+    });
+    console.log("Generated Schedule:", schedule);
+});
+
+// ================= CRUD FUNCTIONS =================
+
+function renderTaskList() {
+    // Clear list
+    taskListContainer.innerHTML = "";
+    taskCountBadge.textContent = tasks.length;
+
+    if (tasks.length === 0) {
+        taskListContainer.innerHTML = `
+            <div class="empty-state">
+                <p>No tasks yet. Add one to get started!</p>
+            </div>`;
+        return;
+    }
+
+    // Render items
+    tasks.forEach((task) => {
+        const item = document.createElement("div");
+        item.className = "task-item";
+        item.innerHTML = `
+            <div class="task-info">
+                <h4>${task.name}</h4>
+                <div class="task-meta">
+                    <span>${task.hoursTotal}h • Due: ${task.dueDate}</span>
+                    <span class="task-tag ${task.effort}">${task.effort.toUpperCase()}</span>
+                </div>
+            </div>
+            <div class="task-actions">
+                <button class="action-btn edit" onclick="startEdit('${task.id}')" title="Edit">✎</button>
+                <button class="action-btn delete" onclick="deleteTask('${task.id}')" title="Delete">🗑</button>
+            </div>
+        `;
+        taskListContainer.appendChild(item);
+    });
+}
+
+// Global scope needed for onclick events in HTML strings
+window.deleteTask = function (id) {
+    if (confirm("Are you sure you want to delete this task?")) {
+        tasks = tasks.filter((t) => t.id !== id);
+        renderTaskList();
+        // If we deleted the item currently being edited, reset form
+        if (isEditing && editingId === id) resetForm();
+        showMessage("Task deleted.", "success");
+    }
+};
+
+window.startEdit = function (id) {
+    const task = tasks.find((t) => t.id === id);
+    if (!task) return;
+
+    // Set State
+    isEditing = true;
+    editingId = id;
+
+    // Update UI
+    formTitle.textContent = "Edit Task";
+    submitBtn.innerHTML = "Save Changes";
+    submitBtn.classList.remove("primary-btn");
+    submitBtn.classList.add("accent-btn");
+    cancelBtn.classList.remove("hidden");
+
+    // Populate Form
+    document.getElementById("task-name").value = task.name;
+    document.getElementById("task-dueDate").value = task.dueDate;
+    document.getElementById("task-hoursTotal").value = task.hoursTotal;
+    document.getElementById("task-gradePercent").value = task.gradePercent;
+    document.getElementById("task-effort").value = task.effort;
+};
+
+function updateTask(id, validData) {
+    const index = tasks.findIndex((t) => t.id === id);
+    if (index !== -1) {
+        // preserve ID, update fields
+        tasks[index] = {
+            ...tasks[index],
+            name: validData.name,
+            dueDate: validData.dueDate,
+            hoursTotal: validData.hoursTotal,
+            gradePercent: validData.gradePercent,
+            effort: validData.effort,
+        };
+    }
+}
+
+function resetForm() {
+    isEditing = false;
+    editingId = null;
+    taskForm.reset();
+
+    // Reset UI
+    formTitle.textContent = "Add New Task";
+    submitBtn.innerHTML = '<span class="plus-icon">+</span> Add Task';
+    submitBtn.classList.add("primary-btn");
+    submitBtn.classList.remove("accent-btn");
+    cancelBtn.classList.add("hidden");
+}
+
+// ================= HELPERS & VALIDATION =================
+
+function readTaskInputs() {
     return {
         name: document.getElementById("task-name").value,
         hoursTotal: document.getElementById("task-hoursTotal").value,
         gradePercent: document.getElementById("task-gradePercent").value,
         effort: document.getElementById("task-effort").value,
-        dueDate: document.getElementById("task-dueDate").value
+        dueDate: document.getElementById("task-dueDate").value,
     };
 }
 
-// validates and normailizes
 function validateTaskInputs(input) {
-    // makes the format for the strings consistent
     const name = input.name.trim();
     const dueDate = input.dueDate.trim();
     const effort = input.effort.trim().toLowerCase();
-    
-    // converts numeric strings to numbers
     const hoursTotal = Number(input.hoursTotal);
     const gradePercent = Number(input.gradePercent);
 
-    if (name.length === 0) {
-        return {ok: false, errorMessage: "Task name can't be empty."};
-    }
-    
-    if (dueDate.length === 0) {
-        return {ok: false, errorMessage: "Due date is missing"};
-    }
+    if (name.length === 0)
+        return { ok: false, errorMessage: "Task name required." };
+    if (dueDate.length === 0)
+        return { ok: false, errorMessage: "Due date required." };
+    if (Number.isNaN(hoursTotal) || hoursTotal <= 0)
+        return { ok: false, errorMessage: "Hours must be > 0." };
+    if (Number.isNaN(gradePercent) || gradePercent < 0 || gradePercent > 100)
+        return { ok: false, errorMessage: "Weight must be 0-100." };
 
-    if (Number.isNaN(hoursTotal) || hoursTotal <= 0) {
-        return {ok: false, errorMessage: "Total hours must be greater than 0."};
-    }
+    return { ok: true, name, dueDate, hoursTotal, gradePercent, effort };
+}
 
-    if (Number.isNaN(gradePercent) || gradePercent < 0 || gradePercent > 100) {
-        return {ok: false, errorMessage: "Grade percent must be between 0 and 100"};
-    }
-
-    if (effort !== "light" && effort !== "heavy") {
-        return {ok: false, errorMessage: "Effort must be light or heavy."}
-    }
-
+function createTask(data) {
     return {
-        ok: true,
-        name: name,
-        dueDate: dueDate,
-        hoursTotal: hoursTotal,
-        gradePercent: gradePercent,
-        effort: effort
+        id: "t" + Date.now(), // simple unique ID using timestamp
+        name: data.name,
+        gradePercent: data.gradePercent,
+        dueDate: data.dueDate,
+        hoursTotal: data.hoursTotal,
+        hoursRemaining: data.hoursTotal,
+        effort: data.effort,
     };
 }
 
-/*
-Task object structure
-    - id: string    (t1, t2, t3, ...)
-    - name: string  (name of the task)
-    - gradePercent: number  (0-100)
-    - dueDate: string   (YYYY-MM-DD)
-    - hoursTotal: number    (estimate for how long this task will take to complete)
-    - hoursRemaining: number    (remaining hours for this task)
-    - effort: string    (light or heavy for if the user thinks a task is light or heavy)
-*/
-function createTask(task) {
-    return {
-        id: generateTaskId(),
-        name: task.name,
-        gradePercent: task.gradePercent,
-        dueDate: task.dueDate,
-        hoursTotal: task.hoursTotal,
-        hoursRemaining: task.hoursTotal,
-        effort: task.effort
-    };
-
+function showMessage(msg, type) {
+    display.textContent = msg;
+    display.style.color = type === "error" ? "var(--danger)" : "var(--accent)";
+    setTimeout(() => {
+        display.textContent = "";
+    }, 3000);
 }
 
-function generateTaskId() {
-    const id = "t" + nextTaskNumber;
-    nextTaskNumber += 1;
-    return id;
-}
-
-//=================================== Schedule Object Structure ===================================
-
-/*
-Schedule Structure:
-    - startDate: YYYY-MM-DD (user enters today's date)
-    - days: 7 items
-        - each day has a date and up to 2 blocks
-        - each block: {taskId, taskName, hoursPlanned}
-*/
+// ================= PREVIOUS SCHEDULE LOGIC (Minified) =================
 function createEmptySchedule(todayDate) {
-    const startDate = makeDate(todayDate);
-
-    // final schedule
-    const schedule = {
-        startDate: todayDate,
-        days: []
-    };
-
-    // build 7 days
-    for(let i = 0; i < 7; i += 1) {
-        const date = new Date(startDate); // copy of startDate so it doesn't get modified
-        date.setDate(startDate.getDate() + i); // copied date moves forward i days
-
-        // store the day in the schedule
-        schedule.days.push({
-            date: makeDateString(date),
-            blocks: []
-        });
+    const startDate = new Date(todayDate);
+    const schedule = { startDate: todayDate, days: [] };
+    for (let i = 0; i < 7; i++) {
+        const d = new Date(startDate);
+        d.setDate(startDate.getDate() + i);
+        schedule.days.push({ date: d.toISOString().split("T")[0], blocks: [] });
     }
-
     return schedule;
-
 }
-
-/*
-    parameters:
-        - schedule: the schedule object returned by createEmptySchedule()
-        - dayIndex: which day to add
-        - block: the work block to add like:
-            {taskId: "t1", taskName: "Math HW", hoursPlanned: 2}
-    returns:
-        - true if the block was added
-        - false if the day already has 2 blocks 
-*/
-
 function tryAddBlock(schedule, dayIndex, block) {
     const day = schedule.days[dayIndex];
-
-    if (day.blocks.length >= 2) {
-        return false;
-    }
-
+    if (day.blocks.length >= 2) return false;
     day.blocks.push(block);
     return true;
-}
-
-// breaks down the user-entered date into parts and creates a date object
-// "YYYY-MM-DD" -> Date
-function makeDate(dateString) {
-    const parts = dateString.split("-");
-    const year = Number(parts[0]);
-    const month = Number(parts[1]) - 1; // Jan is 0, Feb is 1, ...
-    const day = Number(parts[2]);
-    return new Date(year, month, day);
-}
-
-// takes the Date and turns it into a string
-// Date -> "YYYY-MM-DD"
-function makeDateString(date) {
-    const year = String(date.getFullYear());
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    return (year + "-" + month + "-" + day);
 }

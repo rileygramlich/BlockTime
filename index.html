@@ -1,90 +1,146 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="light">
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Block Time</title>
-        <link rel="stylesheet" href="style.css" />
+        <!-- Google Fonts for that Material Look -->
+        <link
+            href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap"
+            rel="stylesheet"
+        />
+        <link rel="stylesheet" href="Style/style.css" />
     </head>
     <body>
-        <div class="app-container">
-            <header>
-                <h1>Block Time</h1>
-                <p class="subtitle">Weekly Student Planner</p>
+        <div class="app-layout">
+            <!-- HEADER -->
+            <header class="app-header">
+                <div class="header-content">
+                    <div class="brand">
+                        <div class="logo-icon">B</div>
+                        <h1>Block Time</h1>
+                    </div>
+                    <button
+                        id="theme-toggle"
+                        class="icon-btn"
+                        aria-label="Toggle Dark Mode"
+                    >
+                        <span class="icon">◑</span>
+                    </button>
+                </div>
             </header>
 
-            <!-- INPUT SECTION -->
-            <section class="input-panel">
-                <h2>Add New Task</h2>
+            <main class="main-content">
+                <!-- LEFT COLUMN: INPUTS -->
+                <section class="card input-card">
+                    <h2 id="form-title">Add New Task</h2>
 
-                <div class="form-group">
-                    <label for="task-name">Task Name</label>
-                    <input
-                        type="text"
-                        id="task-name"
-                        placeholder="e.g. Calculus Final"
-                    />
+                    <form id="task-form" onsubmit="event.preventDefault()">
+                        <!-- Hidden ID for Editing -->
+                        <input type="hidden" id="task-id" />
+
+                        <div class="form-group">
+                            <label for="task-name">Task Name</label>
+                            <input
+                                type="text"
+                                id="task-name"
+                                placeholder="e.g. Calculus Final"
+                                required
+                            />
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="task-dueDate">Due Date</label>
+                                <input type="date" id="task-dueDate" required />
+                            </div>
+                            <div class="form-group">
+                                <label for="task-hoursTotal">Est. Hours</label>
+                                <input
+                                    type="number"
+                                    id="task-hoursTotal"
+                                    placeholder="5"
+                                    min="1"
+                                    required
+                                />
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="task-gradePercent"
+                                    >Weight (%)</label
+                                >
+                                <input
+                                    type="number"
+                                    id="task-gradePercent"
+                                    placeholder="20"
+                                    min="0"
+                                    max="100"
+                                />
+                            </div>
+                            <div class="form-group">
+                                <label for="task-effort">Energy Required</label>
+                                <select id="task-effort">
+                                    <option value="heavy">
+                                        Heavy (High Focus)
+                                    </option>
+                                    <option value="light">
+                                        Light (Low Energy)
+                                    </option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-actions">
+                            <button
+                                type="button"
+                                id="cancel-btn"
+                                class="btn text-btn hidden"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="submit"
+                                id="add-task-btn"
+                                class="btn primary-btn"
+                            >
+                                <span class="plus-icon">+</span> Add Task
+                            </button>
+                        </div>
+                    </form>
+                </section>
+
+                <!-- RIGHT COLUMN: LIST & SCHEDULE -->
+                <div class="content-column">
+                    <!-- TASK LIST -->
+                    <section class="card list-card">
+                        <div class="card-header">
+                            <h2>Your Tasks</h2>
+                            <span id="task-count" class="badge">0</span>
+                        </div>
+
+                        <div id="task-list-container" class="task-list">
+                            <!-- Tasks will be injected here by JS -->
+                            <div class="empty-state">
+                                <p>No tasks yet. Add one to get started!</p>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- GENERATE ACTION -->
+                    <section class="actions-area">
+                        <button
+                            id="generate-btn"
+                            class="btn accent-btn full-width"
+                        >
+                            Generate Weekly Schedule
+                        </button>
+                        <!-- System Status / Feedback -->
+                        <div id="message-display" class="status-msg"></div>
+                    </section>
                 </div>
-
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="task-dueDate">Due Date</label>
-                        <input type="date" id="task-dueDate" />
-                    </div>
-                    <div class="form-group">
-                        <label for="task-hoursTotal">Est. Hours</label>
-                        <input
-                            type="number"
-                            id="task-hoursTotal"
-                            placeholder="5"
-                            min="1"
-                        />
-                    </div>
-                </div>
-
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="task-gradePercent">Weight (%)</label>
-                        <input
-                            type="number"
-                            id="task-gradePercent"
-                            placeholder="20"
-                            min="0"
-                            max="100"
-                        />
-                    </div>
-                    <div class="form-group">
-                        <label for="task-effort">Energy Required</label>
-                        <select id="task-effort">
-                            <option value="heavy">Heavy (High Focus)</option>
-                            <option value="light">Light (Low Energy)</option>
-                        </select>
-                    </div>
-                </div>
-
-                <!-- This ID matches your JS 'const button = ...' -->
-                <button id="hello-btn" class="primary-btn">
-                    Generate Schedule (Debug)
-                </button>
-            </section>
-
-            <!-- OUTPUT SECTION -->
-            <section class="output-panel">
-                <h3>System Status</h3>
-                <!-- This ID matches your JS 'const display = ...' -->
-                <div id="message-display" class="status-box">
-                    Waiting for input...
-                </div>
-
-                <div class="note">
-                    <small
-                        ><em
-                            >Check the Browser Console (F12) to see the full
-                            Schedule Object structure.</em
-                        ></small
-                    >
-                </div>
-            </section>
+            </main>
         </div>
 
         <script src="index.js"></script>
