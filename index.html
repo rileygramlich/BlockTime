@@ -3,18 +3,90 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Hello World - Local Setup</title>
-        <!-- Linking the external CSS file -->
-        <link rel="stylesheet" href="Style/style.css" />
+        <title>Block Time</title>
+        <link rel="stylesheet" href="style.css" />
     </head>
     <body>
-        <div class="container">
-            <h1>BlockTime</h1>
-            <button id="hello-btn">Initialize World</button>
-            <div id="message-display"></div>
+        <div class="app-container">
+            <header>
+                <h1>Block Time</h1>
+                <p class="subtitle">Weekly Student Planner</p>
+            </header>
+
+            <!-- INPUT SECTION -->
+            <section class="input-panel">
+                <h2>Add New Task</h2>
+
+                <div class="form-group">
+                    <label for="task-name">Task Name</label>
+                    <input
+                        type="text"
+                        id="task-name"
+                        placeholder="e.g. Calculus Final"
+                    />
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="task-dueDate">Due Date</label>
+                        <input type="date" id="task-dueDate" />
+                    </div>
+                    <div class="form-group">
+                        <label for="task-hoursTotal">Est. Hours</label>
+                        <input
+                            type="number"
+                            id="task-hoursTotal"
+                            placeholder="5"
+                            min="1"
+                        />
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="task-gradePercent">Weight (%)</label>
+                        <input
+                            type="number"
+                            id="task-gradePercent"
+                            placeholder="20"
+                            min="0"
+                            max="100"
+                        />
+                    </div>
+                    <div class="form-group">
+                        <label for="task-effort">Energy Required</label>
+                        <select id="task-effort">
+                            <option value="heavy">Heavy (High Focus)</option>
+                            <option value="light">Light (Low Energy)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- This ID matches your JS 'const button = ...' -->
+                <button id="hello-btn" class="primary-btn">
+                    Generate Schedule (Debug)
+                </button>
+            </section>
+
+            <!-- OUTPUT SECTION -->
+            <section class="output-panel">
+                <h3>System Status</h3>
+                <!-- This ID matches your JS 'const display = ...' -->
+                <div id="message-display" class="status-box">
+                    Waiting for input...
+                </div>
+
+                <div class="note">
+                    <small
+                        ><em
+                            >Check the Browser Console (F12) to see the full
+                            Schedule Object structure.</em
+                        ></small
+                    >
+                </div>
+            </section>
         </div>
 
-        <!-- Linking the external JavaScript file -->
         <script src="index.js"></script>
     </body>
 </html>
