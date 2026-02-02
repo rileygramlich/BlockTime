@@ -13,26 +13,21 @@ const cancelBtn = document.getElementById("cancel-btn");
 const themeToggle = document.getElementById("theme-toggle");
 const display = document.getElementById("message-display");
 const generateBtn = document.getElementById("generate-btn");
+const scheduleResult = document.getElementById("schedule-result");
+const scheduleDisplayArea = document.getElementById("schedule-display-area");
+const availInputs = document.querySelectorAll(".avail-input");
 
 // ================= INITIALIZATION =================
 document.addEventListener("DOMContentLoaded", () => {
-    // 1. Load Theme
     const savedTheme = localStorage.getItem("theme") || "light";
     document.documentElement.setAttribute("data-theme", savedTheme);
-
-    // 2. Mock Data (Optional - remove for production)
-    // tasks.push(createTask({name: "Math HW", hoursTotal: 2, dueDate: "2026-02-15", gradePercent: 10, effort: "heavy"}));
-
     renderTaskList();
 });
 
 // ================= EVENT LISTENERS =================
 
-// Add / Update Task
 submitBtn.addEventListener("click", (e) => {
-    e.preventDefault(); // Prevent form submission
-
-    // 1. Read & Validate
+    e.preventDefault();
     const rawInput = readTaskInputs();
     const validation = validateTaskInputs(rawInput);
 
@@ -42,62 +37,209 @@ submitBtn.addEventListener("click", (e) => {
     }
 
     if (isEditing) {
-        // UPDATE existing task
         updateTask(editingId, validation);
         showMessage("Task updated successfully.", "success");
     } else {
-        // CREATE new task
         const newTask = createTask(validation);
         tasks.push(newTask);
         showMessage("Task added to list.", "success");
     }
 
-    // 2. Render & Cleanup
     renderTaskList();
     resetForm();
 });
 
-// Cancel Edit
 cancelBtn.addEventListener("click", resetForm);
 
-// Toggle Theme
 themeToggle.addEventListener("click", () => {
     const html = document.documentElement;
     const current = html.getAttribute("data-theme");
     const next = current === "light" ? "dark" : "light";
-
     html.setAttribute("data-theme", next);
     localStorage.setItem("theme", next);
 });
 
-// Generate Schedule (Stub)
+// ================= SCHEDULE GENERATION =================
+
 generateBtn.addEventListener("click", () => {
     if (tasks.length === 0) {
-        showMessage("Please add tasks before generating a schedule.", "error");
+        showMessage("Please add tasks before generating.", "error");
         return;
     }
-    showMessage(
-        `Generating schedule for ${tasks.length} tasks... (Check Console)`,
-        "success",
+
+    showMessage("Generating schedule...", "success");
+
+    // 1. Get real time context
+    const today = new Date();
+    const daysMap = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+    // 2. Read Availability Pattern
+    // returns array [SunHrs, MonHrs, ... SatHrs]
+    const baseAvailability = Array.from(availInputs).map(
+        (input) => Number(input.value) || 0,
     );
 
-    // Logic from previous version would go here
-    const schedule = createEmptySchedule("2026-02-02");
-    // naive allocation for demo
-    tasks.forEach((t, i) => {
-        tryAddBlock(schedule, i % 7, {
-            taskId: t.id,
-            taskName: t.name,
-            hoursPlanned: Math.min(2, t.hoursRemaining),
+    // 3. Create 7-day projection starting Today
+    // If today is Tuesday (2), we want the array to start at index 2
+    let projectedAvailability = [];
+    let startDayIndex = today.getDay(); // 0-6
+
+    for (let i = 0; i < 7; i++) {
+        let pointer = (startDayIndex + i) % 7;
+        projectedAvailability.push(baseAvailability[pointer]);
+    }
+
+    console.log("Starting Generation Logic...");
+    console.log("Tasks:", tasks);
+    console.log("Base Availability (Sun-Sat):", baseAvailability);
+    console.log("Projected Availability (Next 7 days):", projectedAvailability);
+
+    // 4. Calculations
+    const totalHoursNeeded = tasks.reduce((sum, t) => sum + t.hoursTotal, 0);
+    const totalHoursAvailable = projectedAvailability.reduce(
+        (a, b) => a + b,
+        0,
+    );
+    const isFeasible = totalHoursAvailable >= totalHoursNeeded;
+    const statusText = isFeasible ? "Feasible" : "Tight Schedule";
+    const statusClass = isFeasible ? "ok" : "warn";
+
+    // 5. Build HTML Output
+    let htmlContent = "";
+
+    // A. Summary Dashboard
+    htmlContent += `
+        <div class="summary-stats">
+            <div class="stat-item">
+                <span class="stat-label">Total Work</span>
+                <span class="stat-value">${totalHoursNeeded.toFixed(1)}h</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Available This Week</span>
+                <span class="stat-value">${totalHoursAvailable.toFixed(1)}h</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Status</span>
+                <span class="stat-value ${statusClass}">${statusText}</span>
+            </div>
+        </div>
+        <h3 class="section-title">7-Day Schedule</h3>
+    `;
+
+    // B. Distribution Logic
+    let currentTaskIndex = 0;
+    let currentTaskRemaining = tasks.length > 0 ? tasks[0].hoursTotal : 0;
+
+    for (let i = 0; i < 7; i++) {
+        let d = new Date(today);
+        d.setDate(today.getDate() + i);
+        let dateStr = d.toLocaleDateString(undefined, {
+            month: "short",
+            day: "numeric",
         });
-    });
-    console.log("Generated Schedule:", schedule);
+        let dayName = daysMap[d.getDay()];
+        let hoursAvailable = projectedAvailability[i];
+
+        // Start Day Card
+        htmlContent += `
+            <div class="schedule-day">
+                <div class="day-header">
+                    <h4>${dayName} <span style="font-weight:400; font-size:0.9em; opacity:0.8;">${dateStr}</span></h4>
+                    <span class="day-avail">${hoursAvailable}h avail</span>
+                </div>
+                <div class="day-tasks">
+        `;
+
+        if (hoursAvailable === 0) {
+            htmlContent += `<div class="note-text">Rest Day (0 hours available)</div>`;
+        } else {
+            let hoursFilled = 0;
+            let blocksAdded = 0;
+
+            while (
+                hoursFilled < hoursAvailable &&
+                currentTaskIndex < tasks.length
+            ) {
+                let task = tasks[currentTaskIndex];
+                let timeToSpend = Math.min(
+                    hoursAvailable - hoursFilled,
+                    currentTaskRemaining,
+                );
+
+                htmlContent += `
+                    <div class="schedule-item">
+                        <div class="task-info">
+                            <h4>${task.name}</h4>
+                            <span class="note-text">${currentTaskRemaining <= timeToSpend ? "(Finish)" : "(Continue)"}</span>
+                        </div>
+                        <div class="task-meta">
+                            <span class="task-tag ${task.effort}">${timeToSpend.toFixed(1)}h</span>
+                        </div>
+                    </div>
+                `;
+
+                hoursFilled += timeToSpend;
+                currentTaskRemaining -= timeToSpend;
+                blocksAdded++;
+
+                if (currentTaskRemaining <= 0.01) {
+                    // Floating point safety
+                    currentTaskIndex++;
+                    if (currentTaskIndex < tasks.length) {
+                        currentTaskRemaining =
+                            tasks[currentTaskIndex].hoursTotal;
+                    }
+                }
+            }
+
+            if (blocksAdded === 0 && currentTaskIndex >= tasks.length) {
+                htmlContent += `<div class="note-text">No tasks remaining!</div>`;
+            }
+        }
+
+        htmlContent += `</div></div>`;
+    }
+
+    // C. Energy Options
+    htmlContent += `<h3 class="section-title">Today's Options (Energy Based)</h3>`;
+    const heavyTasks = tasks.filter((t) => t.effort === "heavy");
+    const lightTasks = tasks.filter((t) => t.effort === "light");
+
+    const generateOptionList = (label, taskList, fallbackMsg) => {
+        let listHtml = `<div class="schedule-day" style="border-left-color:var(--border)"><div class="day-header"><h4>${label}</h4></div><div class="day-tasks">`;
+        if (taskList.length > 0) {
+            taskList.forEach((t) => {
+                listHtml += `
+                    <div class="schedule-item">
+                        <div class="task-info"><h4>${t.name}</h4></div>
+                        <div class="task-meta"><span class="task-tag ${t.effort}">${t.hoursTotal}h total</span></div>
+                    </div>`;
+            });
+        } else {
+            listHtml += `<div class="note-text">${fallbackMsg}</div>`;
+        }
+        return listHtml + `</div></div>`;
+    };
+
+    htmlContent += generateOptionList(
+        "Low Energy Mode",
+        lightTasks,
+        "No light tasks available.",
+    );
+    htmlContent += generateOptionList(
+        "High Energy Mode",
+        heavyTasks,
+        "No heavy tasks available.",
+    );
+
+    scheduleDisplayArea.innerHTML = htmlContent;
+    scheduleResult.classList.remove("hidden");
+    scheduleResult.scrollIntoView({ behavior: "smooth" });
 });
 
-// ================= CRUD FUNCTIONS =================
+// ================= HELPER FUNCTIONS =================
 
 function renderTaskList() {
-    // Clear list
     taskListContainer.innerHTML = "";
     taskCountBadge.textContent = tasks.length;
 
@@ -109,7 +251,6 @@ function renderTaskList() {
         return;
     }
 
-    // Render items
     tasks.forEach((task) => {
         const item = document.createElement("div");
         item.className = "task-item";
@@ -130,12 +271,10 @@ function renderTaskList() {
     });
 }
 
-// Global scope needed for onclick events in HTML strings
 window.deleteTask = function (id) {
     if (confirm("Are you sure you want to delete this task?")) {
         tasks = tasks.filter((t) => t.id !== id);
         renderTaskList();
-        // If we deleted the item currently being edited, reset form
         if (isEditing && editingId === id) resetForm();
         showMessage("Task deleted.", "success");
     }
@@ -145,18 +284,15 @@ window.startEdit = function (id) {
     const task = tasks.find((t) => t.id === id);
     if (!task) return;
 
-    // Set State
     isEditing = true;
     editingId = id;
 
-    // Update UI
     formTitle.textContent = "Edit Task";
     submitBtn.innerHTML = "Save Changes";
     submitBtn.classList.remove("primary-btn");
     submitBtn.classList.add("accent-btn");
     cancelBtn.classList.remove("hidden");
 
-    // Populate Form
     document.getElementById("task-name").value = task.name;
     document.getElementById("task-dueDate").value = task.dueDate;
     document.getElementById("task-hoursTotal").value = task.hoursTotal;
@@ -167,7 +303,6 @@ window.startEdit = function (id) {
 function updateTask(id, validData) {
     const index = tasks.findIndex((t) => t.id === id);
     if (index !== -1) {
-        // preserve ID, update fields
         tasks[index] = {
             ...tasks[index],
             name: validData.name,
@@ -183,16 +318,12 @@ function resetForm() {
     isEditing = false;
     editingId = null;
     taskForm.reset();
-
-    // Reset UI
     formTitle.textContent = "Add New Task";
     submitBtn.innerHTML = '<span class="plus-icon">+</span> Add Task';
     submitBtn.classList.add("primary-btn");
     submitBtn.classList.remove("accent-btn");
     cancelBtn.classList.add("hidden");
 }
-
-// ================= HELPERS & VALIDATION =================
 
 function readTaskInputs() {
     return {
@@ -225,7 +356,7 @@ function validateTaskInputs(input) {
 
 function createTask(data) {
     return {
-        id: "t" + Date.now(), // simple unique ID using timestamp
+        id: "t" + Date.now(),
         name: data.name,
         gradePercent: data.gradePercent,
         dueDate: data.dueDate,
@@ -241,22 +372,4 @@ function showMessage(msg, type) {
     setTimeout(() => {
         display.textContent = "";
     }, 3000);
-}
-
-// ================= PREVIOUS SCHEDULE LOGIC (Minified) =================
-function createEmptySchedule(todayDate) {
-    const startDate = new Date(todayDate);
-    const schedule = { startDate: todayDate, days: [] };
-    for (let i = 0; i < 7; i++) {
-        const d = new Date(startDate);
-        d.setDate(startDate.getDate() + i);
-        schedule.days.push({ date: d.toISOString().split("T")[0], blocks: [] });
-    }
-    return schedule;
-}
-function tryAddBlock(schedule, dayIndex, block) {
-    const day = schedule.days[dayIndex];
-    if (day.blocks.length >= 2) return false;
-    day.blocks.push(block);
-    return true;
 }
