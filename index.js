@@ -6,20 +6,31 @@ document.addEventListener("DOMContentLoaded", () => {
     const display = document.getElementById("message-display");
 
     // currently creates a task when the button is clicked
+    // this button is currently just being used for debugging
     button.addEventListener("click", () => {
-       const input = readInputs();
-       const inputValidation = validateInputs(input);
+       const taskInput = readTaskInputs();
+       const taskInputValidation = validateTaskInputs(taskInput);
 
        // do not create a task if invalid inputs
-       if (inputValidation.ok === false) {
-        display.textContent = inputValidation.errorMessage;
+       if (taskInputValidation.ok === false) {
+        display.textContent = taskInputValidation.errorMessage;
         display.classList.add("visible");
         return;
        }
 
-       const task = createTask(inputValidation);
+       // tests
+       const task = createTask(taskInputValidation);
+       console.log("Created task: ", task)  
 
-       console.log(task)  
+       const schedule = createEmptySchedule("2026-02-11"); // TODO: replace with user today date input
+
+       tryAddBlock(schedule, 0, {taskId: "t1", taskName: "Math HW", hoursPlanned: 2});
+       tryAddBlock(schedule, 0, {taskId: "t2", taskName: "COMP HW", hoursPlanned: 2});
+
+       const thirdAdd = tryAddBlock(schedule, 0, {taskId: "t3", taskName: "GNED HW", hoursPlanned: 2});
+       console.log("Third add should be false", thirdAdd);
+       console.log("Schedule:",schedule);
+
        display.textContent = "Created task " + task.id;
        display.classList.add("visible");
     });
@@ -28,7 +39,7 @@ document.addEventListener("DOMContentLoaded", () => {
 //=================================== Task Creation + Validation ===================================
 
 // reads inputs and returns strings
-function readInputs() {
+function readTaskInputs() {
     const testName = document.getElementById("task-name");
 
     // Test data. Remove this once input fields are added
@@ -38,7 +49,7 @@ function readInputs() {
         hoursTotal: 5,
         gradePercent: 10,
         effort: "heavy",
-        dueDate: "2026-2-1"
+        dueDate: "2026-02-01"
         };
     }
 
@@ -52,7 +63,7 @@ function readInputs() {
 }
 
 // validates and normailizes
-function validateInputs(input) {
+function validateTaskInputs(input) {
     // makes the format for the strings consistent
     const name = input.name.trim();
     const dueDate = input.dueDate.trim();
@@ -119,4 +130,79 @@ function generateTaskId() {
     const id = "t" + nextTaskNumber;
     nextTaskNumber += 1;
     return id;
+}
+
+//=================================== Schedule Object Structure ===================================
+
+/*
+Schedule Structure:
+    - startDate: YYYY-MM-DD (user enters today's date)
+    - days: 7 items
+        - each day has a date and up to 2 blocks
+        - each block: {taskId, taskName, hoursPlanned}
+*/
+function createEmptySchedule(todayDate) {
+    const startDate = makeDate(todayDate);
+
+    // final schedule
+    const schedule = {
+        startDate: todayDate,
+        days: []
+    };
+
+    // build 7 days
+    for(let i = 0; i < 7; i += 1) {
+        const date = new Date(startDate); // copy of startDate so it doesn't get modified
+        date.setDate(startDate.getDate() + i); // copied date moves forward i days
+
+        // store the day in the schedule
+        schedule.days.push({
+            date: makeDateString(date),
+            blocks: []
+        });
+    }
+
+    return schedule;
+
+}
+
+/*
+    parameters:
+        - schedule: the schedule object returned by createEmptySchedule()
+        - dayIndex: which day to add
+        - block: the work block to add like:
+            {taskId: "t1", taskName: "Math HW", hoursPlanned: 2}
+    returns:
+        - true if the block was added
+        - false if the day already has 2 blocks 
+*/
+
+function tryAddBlock(schedule, dayIndex, block) {
+    const day = schedule.days[dayIndex];
+
+    if (day.blocks.length >= 2) {
+        return false;
+    }
+
+    day.blocks.push(block);
+    return true;
+}
+
+// breaks down the user-entered date into parts and creates a date object
+// "YYYY-MM-DD" -> Date
+function makeDate(dateString) {
+    const parts = dateString.split("-");
+    const year = Number(parts[0]);
+    const month = Number(parts[1]) - 1; // Jan is 0, Feb is 1, ...
+    const day = Number(parts[2]);
+    return new Date(year, month, day);
+}
+
+// takes the Date and turns it into a string
+// Date -> "YYYY-MM-DD"
+function makeDateString(date) {
+    const year = String(date.getFullYear());
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return (year + "-" + month + "-" + day);
 }
