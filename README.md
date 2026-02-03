@@ -4,7 +4,7 @@
 
 ## Try Now
 
-[BlockTime](https://github.com/rileygramlich/BlockTime/deployments/github-pages)
+[BlockTime](https://rileygramlich.github.io/BlockTime/)
 
 ## Description and Problem Statement
 
