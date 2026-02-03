@@ -45,6 +45,6 @@ Below are the steps that are used to run the app:
 ## Contributors & License
 
 - **Front-End Developer:** [Riley Gramlich](https://github.com/rileygramlich)
-- **Javascript Developer:** [Abdul Mohammed](https://github.com/Exotiv-1)
+- **Javascript Developer:** [Abdul Mohammad](https://github.com/Exotiv-1)
 - **QA Analyst & Documention:** [Khizar Baig](https://github.com/kbaig601)
 - **License:** Open Source (See LICENSE in repository, typically MIT for hackathon projects).
