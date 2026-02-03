@@ -4,7 +4,7 @@
 
 ## Try Now
 
-[BlockTime](https://github.com/rileygramlich/BlockTime/deployments/github-pages)
+[BlockTime](https://rileygramlich.github.io/BlockTime/)
 
 ## Description and Problem Statement
 
@@ -26,6 +26,7 @@
 - Stack: JavaScript, HTML, CSS
 - Github: version control & hosting
 - AI: Google Gemini Pro 3, ChatGPT
+- [Favicon.io](https://favicon.io/favicon-converter/)
 
 ## Getting Started
 
@@ -45,6 +46,6 @@ Below are the steps that are used to run the app:
 ## Contributors & License
 
 - **Front-End Developer:** [Riley Gramlich](https://github.com/rileygramlich)
-- **Javascript Developer:** [Abdul Mohammed](https://github.com/Exotiv-1)
-- **QA Analyst & Documention:** [Khizar Baig](https://github.com/kbaig601)
+- **Javascript Developer:** [Abdul Mohammad](https://github.com/Exotiv-1)
+- **QA Analyst, Tester, and Documention:** [Khizar Baig](https://github.com/kbaig601)
 - **License:** Open Source (See LICENSE in repository, typically MIT for hackathon projects).
