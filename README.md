@@ -26,6 +26,7 @@
 - Stack: JavaScript, HTML, CSS
 - Github: version control & hosting
 - AI: Google Gemini Pro 3, ChatGPT
+- [Favicon.io](https://favicon.io/favicon-converter/)
 
 ## Getting Started
 
