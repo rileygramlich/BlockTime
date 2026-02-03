@@ -16,6 +16,11 @@ const generateBtn = document.getElementById("generate-btn");
 const scheduleResult = document.getElementById("schedule-result");
 const scheduleDisplayArea = document.getElementById("schedule-display-area");
 const availInputs = document.querySelectorAll(".avail-input");
+const debugBtn = document.getElementById("debug-btn");
+
+// Constants
+const MAX_HOURS_PER_DAY = 5;
+const MAX_TASKS_PER_DAY = 2;
 
 // ================= INITIALIZATION =================
 document.addEventListener("DOMContentLoaded", () => {
@@ -59,6 +64,65 @@ themeToggle.addEventListener("click", () => {
     localStorage.setItem("theme", next);
 });
 
+// DEBUG BUTTON: Real-world Test Cases
+debugBtn.addEventListener("click", () => {
+    // 1. Set Mixed Availability
+    const weekAvail = [0, 4, 3, 2, 8, 1, 5]; 
+    availInputs.forEach((input, i) => {
+        input.value = weekAvail[i];
+    });
+
+    // 2. Helper to get date string
+    const getFutureDate = (days) => {
+        const d = new Date();
+        d.setDate(d.getDate() + days);
+        return d.toISOString().split("T")[0];
+    };
+
+    // 3. Test Cases for Algorithm
+    tasks = [
+        // CASE A: The "Due Tomorrow" Crisis
+        { 
+            id: "t1", 
+            name: "Urgent Lab Report", 
+            hoursTotal: 2, 
+            gradePercent: 50, 
+            dueDate: getFutureDate(1), 
+            effort: "heavy" 
+        },
+        // CASE B: The "Long Haul"
+        { 
+            id: "t2", 
+            name: "Semester Project", 
+            hoursTotal: 12, 
+            gradePercent: 30, 
+            dueDate: getFutureDate(6), 
+            effort: "heavy" 
+        },
+        // CASE C: "Quick Win"
+        { 
+            id: "t3", 
+            name: "Email Professor", 
+            hoursTotal: 0.5, 
+            gradePercent: 5, 
+            dueDate: getFutureDate(3), 
+            effort: "light" 
+        },
+        // CASE D: "The Distraction" - 0% Weight!
+        { 
+            id: "t4", 
+            name: "Optional Reading", 
+            hoursTotal: 2, 
+            gradePercent: 0, 
+            dueDate: getFutureDate(4), 
+            effort: "light" 
+        }
+    ];
+
+    renderTaskList();
+    showMessage("Loaded test data.", "success");
+});
+
 // ================= SCHEDULE GENERATION =================
 
 generateBtn.addEventListener("click", () => {
@@ -69,168 +133,221 @@ generateBtn.addEventListener("click", () => {
 
     showMessage("Generating schedule...", "success");
 
-    // 1. Get real time context
+    // 1. Setup Time Context
     const today = new Date();
+    today.setHours(0,0,0,0);
+    
     const daysMap = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-    // 2. Read Availability Pattern
-    // returns array [SunHrs, MonHrs, ... SatHrs]
+    // 2. Get User Availability (Applied Global Cap)
     const baseAvailability = Array.from(availInputs).map(
-        (input) => Number(input.value) || 0,
+        (input) => {
+            const userVal = Number(input.value) || 0;
+            return Math.min(userVal, MAX_HOURS_PER_DAY);
+        }
     );
 
-    // 3. Create 7-day projection starting Today
-    // If today is Tuesday (2), we want the array to start at index 2
-    let projectedAvailability = [];
+    // 3. Create Sim Tasks
+    let simTasks = tasks.map(t => ({
+        ...t,
+        remaining: t.hoursTotal,
+        dueDateObj: new Date(t.dueDate + 'T00:00:00') 
+    }));
+
+    // 4. Build 7-Day Schedule
+    let htmlContent = "";
+    let weeklyOutput = [];
     let startDayIndex = today.getDay(); // 0-6
 
+    let totalScheduledHours = 0;
+    
     for (let i = 0; i < 7; i++) {
-        let pointer = (startDayIndex + i) % 7;
-        projectedAvailability.push(baseAvailability[pointer]);
+        let currentDayDate = new Date(today);
+        currentDayDate.setDate(today.getDate() + i);
+        
+        let dayOfWeekIndex = (startDayIndex + i) % 7;
+        let dailyCap = baseAvailability[dayOfWeekIndex];
+        
+        let hoursUsedToday = 0;
+        let tasksAssignedToday = 0;
+        let dayAssignments = [];
+
+        // --- SCHEDULING ALGORITHM ---
+        
+        let candidates = simTasks.filter(t => t.remaining > 0 && t.dueDateObj >= currentDayDate);
+
+        // Score = Weight * (1 / DaysUntilDue)
+        candidates.forEach(t => {
+            let diffTime = t.dueDateObj - currentDayDate;
+            let daysUntil = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+            if (daysUntil <= 0) daysUntil = 0.5;
+            
+            // Weight is guaranteed to be a number >= 0 due to validation
+            let weight = t.gradePercent;
+            
+            t.priorityScore = weight / daysUntil;
+        });
+
+        candidates.sort((a, b) => b.priorityScore - a.priorityScore);
+
+        for (let task of candidates) {
+            if (tasksAssignedToday >= MAX_TASKS_PER_DAY) break;
+            if (hoursUsedToday >= dailyCap) break;
+
+            let spaceInDay = dailyCap - hoursUsedToday;
+            let alloc = Math.min(task.remaining, spaceInDay);
+
+            if (alloc > 0) {
+                dayAssignments.push({
+                    name: task.name,
+                    hours: alloc,
+                    effort: task.effort,
+                    isFinish: (task.remaining - alloc) <= 0.01
+                });
+
+                task.remaining -= alloc;
+                hoursUsedToday += alloc;
+                totalScheduledHours += alloc;
+                tasksAssignedToday++;
+            }
+        }
+
+        weeklyOutput.push({
+            dateStr: currentDayDate.toLocaleDateString(undefined, {month:'short', day:'numeric'}),
+            dayName: daysMap[dayOfWeekIndex],
+            cap: dailyCap,
+            assignments: dayAssignments
+        });
     }
 
-    console.log("Starting Generation Logic...");
-    console.log("Tasks:", tasks);
-    console.log("Base Availability (Sun-Sat):", baseAvailability);
-    console.log("Projected Availability (Next 7 days):", projectedAvailability);
+    // 5. Build HTML Output with 3-State Logic
+    const totalNeeded = tasks.reduce((acc, t) => acc + t.hoursTotal, 0);
+    const totalAvailableCapacity = weeklyOutput.reduce((acc, day) => acc + day.cap, 0);
+    
+    let statusText, statusClass;
 
-    // 4. Calculations
-    const totalHoursNeeded = tasks.reduce((sum, t) => sum + t.hoursTotal, 0);
-    const totalHoursAvailable = projectedAvailability.reduce(
-        (a, b) => a + b,
-        0,
-    );
-    const isFeasible = totalHoursAvailable >= totalHoursNeeded;
-    const statusText = isFeasible ? "Feasible" : "Tight Schedule";
-    const statusClass = isFeasible ? "ok" : "warn";
+    if (totalScheduledHours < (totalNeeded - 0.1)) {
+        statusText = "Overloaded";
+        statusClass = "danger"; 
+    } else {
+        const utilization = totalAvailableCapacity > 0 ? (totalScheduledHours / totalAvailableCapacity) : 1;
+        
+        if (utilization > 0.85) {
+            statusText = "Tight Schedule";
+            statusClass = "warn";
+        } else {
+            statusText = "Achievable";
+            statusClass = "ok";
+        }
+    }
 
-    // 5. Build HTML Output
-    let htmlContent = "";
-
-    // A. Summary Dashboard
     htmlContent += `
         <div class="summary-stats">
             <div class="stat-item">
                 <span class="stat-label">Total Work</span>
-                <span class="stat-value">${totalHoursNeeded.toFixed(1)}h</span>
+                <span class="stat-value">${totalNeeded.toFixed(1)}h</span>
             </div>
             <div class="stat-item">
-                <span class="stat-label">Available This Week</span>
-                <span class="stat-value">${totalHoursAvailable.toFixed(1)}h</span>
+                <span class="stat-label">Scheduled</span>
+                <span class="stat-value">${totalScheduledHours.toFixed(1)}h</span>
             </div>
             <div class="stat-item">
                 <span class="stat-label">Status</span>
                 <span class="stat-value ${statusClass}">${statusText}</span>
             </div>
         </div>
-        <h3 class="section-title">7-Day Schedule</h3>
+        <h3 class="section-title">7-Day Plan (Max 5h/day)</h3>
     `;
 
-    // B. Distribution Logic
-    let currentTaskIndex = 0;
-    let currentTaskRemaining = tasks.length > 0 ? tasks[0].hoursTotal : 0;
-
-    for (let i = 0; i < 7; i++) {
-        let d = new Date(today);
-        d.setDate(today.getDate() + i);
-        let dateStr = d.toLocaleDateString(undefined, {
-            month: "short",
-            day: "numeric",
-        });
-        let dayName = daysMap[d.getDay()];
-        let hoursAvailable = projectedAvailability[i];
-
-        // Start Day Card
+    weeklyOutput.forEach(day => {
         htmlContent += `
             <div class="schedule-day">
                 <div class="day-header">
-                    <h4>${dayName} <span style="font-weight:400; font-size:0.9em; opacity:0.8;">${dateStr}</span></h4>
-                    <span class="day-avail">${hoursAvailable}h avail</span>
+                    <h4>${day.dayName} <span style="font-weight:400; font-size:0.9em; opacity:0.8;">${day.dateStr}</span></h4>
+                    <span class="day-avail">${day.cap}h Limit</span>
                 </div>
                 <div class="day-tasks">
         `;
 
-        if (hoursAvailable === 0) {
-            htmlContent += `<div class="note-text">Rest Day (0 hours available)</div>`;
+        if (day.cap === 0) {
+            htmlContent += `<div class="note-text">Rest Day</div>`;
+        } else if (day.assignments.length === 0) {
+             if (totalScheduledHours >= totalNeeded) {
+                 htmlContent += `<div class="note-text" style="color:var(--accent)">Caught up! Free time.</div>`;
+             } else {
+                 htmlContent += `<div class="note-text">No urgent tasks fit today.</div>`;
+             }
         } else {
-            let hoursFilled = 0;
-            let blocksAdded = 0;
-
-            while (
-                hoursFilled < hoursAvailable &&
-                currentTaskIndex < tasks.length
-            ) {
-                let task = tasks[currentTaskIndex];
-                let timeToSpend = Math.min(
-                    hoursAvailable - hoursFilled,
-                    currentTaskRemaining,
-                );
-
+            day.assignments.forEach(item => {
                 htmlContent += `
                     <div class="schedule-item">
                         <div class="task-info">
-                            <h4>${task.name}</h4>
-                            <span class="note-text">${currentTaskRemaining <= timeToSpend ? "(Finish)" : "(Continue)"}</span>
+                            <h4>${item.name}</h4>
+                            <span class="note-text">${item.isFinish ? "✅ Finish this" : "👉 Work on this"}</span>
                         </div>
                         <div class="task-meta">
-                            <span class="task-tag ${task.effort}">${timeToSpend.toFixed(1)}h</span>
+                            <span class="task-tag ${item.effort}">${item.hours.toFixed(1)}h</span>
                         </div>
                     </div>
                 `;
-
-                hoursFilled += timeToSpend;
-                currentTaskRemaining -= timeToSpend;
-                blocksAdded++;
-
-                if (currentTaskRemaining <= 0.01) {
-                    // Floating point safety
-                    currentTaskIndex++;
-                    if (currentTaskIndex < tasks.length) {
-                        currentTaskRemaining =
-                            tasks[currentTaskIndex].hoursTotal;
-                    }
-                }
-            }
-
-            if (blocksAdded === 0 && currentTaskIndex >= tasks.length) {
-                htmlContent += `<div class="note-text">No tasks remaining!</div>`;
-            }
-        }
-
-        htmlContent += `</div></div>`;
-    }
-
-    // C. Energy Options
-    htmlContent += `<h3 class="section-title">Today's Options (Energy Based)</h3>`;
-    const heavyTasks = tasks.filter((t) => t.effort === "heavy");
-    const lightTasks = tasks.filter((t) => t.effort === "light");
-
-    const generateOptionList = (label, taskList, fallbackMsg) => {
-        let listHtml = `<div class="schedule-day" style="border-left-color:var(--border)"><div class="day-header"><h4>${label}</h4></div><div class="day-tasks">`;
-        if (taskList.length > 0) {
-            taskList.forEach((t) => {
-                listHtml += `
-                    <div class="schedule-item">
-                        <div class="task-info"><h4>${t.name}</h4></div>
-                        <div class="task-meta"><span class="task-tag ${t.effort}">${t.hoursTotal}h total</span></div>
-                    </div>`;
             });
-        } else {
-            listHtml += `<div class="note-text">${fallbackMsg}</div>`;
         }
-        return listHtml + `</div></div>`;
+        htmlContent += `</div></div>`;
+    });
+
+    // 6. Energy Options
+    htmlContent += `<h3 class="section-title">Today's Best Options</h3>`;
+    
+    const getBestTask = (effortType) => {
+        let options = tasks.filter(t => t.effort === effortType);
+        if (options.length === 0) return null;
+
+        options.sort((a, b) => {
+            let da = (new Date(a.dueDate) - new Date()) / (1000 * 60 * 60 * 24);
+            let db = (new Date(b.dueDate) - new Date()) / (1000 * 60 * 60 * 24);
+            if(da < 0.1) da = 0.1;
+            if(db < 0.1) db = 0.1;
+            
+            let wa = a.gradePercent;
+            let wb = b.gradePercent;
+            
+            let scoreA = wa / da;
+            let scoreB = wb / db;
+            return scoreB - scoreA;
+        });
+
+        return options[0];
     };
 
-    htmlContent += generateOptionList(
-        "Low Energy Mode",
-        lightTasks,
-        "No light tasks available.",
-    );
-    htmlContent += generateOptionList(
-        "High Energy Mode",
-        heavyTasks,
-        "No heavy tasks available.",
-    );
+    const lightOption = getBestTask("light");
+    const heavyOption = getBestTask("heavy");
+
+    const renderOption = (label, task) => {
+        if (!task) return `
+            <div class="schedule-day" style="border-left-color: var(--border)">
+                <div class="day-header"><h4>${label}</h4></div>
+                <div class="note-text" style="padding-left:16px;">No tasks available.</div>
+            </div>`;
+        
+        return `
+            <div class="schedule-day" style="border-left-color: var(--border)">
+                <div class="day-header"><h4>${label}</h4></div>
+                <div class="day-tasks">
+                    <div class="schedule-item" style="border-left: 4px solid var(--accent)">
+                        <div class="task-info">
+                            <h4>${task.name}</h4>
+                            <span class="note-text">Top Priority</span>
+                        </div>
+                        <div class="task-meta">
+                            <span class="priority-badge">Due ${task.dueDate}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+    };
+
+    htmlContent += renderOption("Low Energy? Do this:", lightOption);
+    htmlContent += renderOption("High Energy? Do this:", heavyOption);
 
     scheduleDisplayArea.innerHTML = htmlContent;
     scheduleResult.classList.remove("hidden");
@@ -340,6 +457,12 @@ function validateTaskInputs(input) {
     const dueDate = input.dueDate.trim();
     const effort = input.effort.trim().toLowerCase();
     const hoursTotal = Number(input.hoursTotal);
+    
+    // Strict check for empty weight
+    if (input.gradePercent.trim() === "") {
+        return { ok: false, errorMessage: "Please enter a weight (0-100)." };
+    }
+    
     const gradePercent = Number(input.gradePercent);
 
     if (name.length === 0)
@@ -350,6 +473,20 @@ function validateTaskInputs(input) {
         return { ok: false, errorMessage: "Hours must be > 0." };
     if (Number.isNaN(gradePercent) || gradePercent < 0 || gradePercent > 100)
         return { ok: false, errorMessage: "Weight must be 0-100." };
+    
+    // Date Check: Ensure due date is not in the past
+    // Normalize today to midnight
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Parse input (YYYY-MM-DD) to avoid timezone issues
+    const [y, m, d] = dueDate.split('-').map(Number);
+    // Note: month is 0-indexed in JS Date
+    const inputDate = new Date(y, m - 1, d);
+
+    if (inputDate < today) {
+        return { ok: false, errorMessage: "Please pick a date not before today." };
+    }
 
     return { ok: true, name, dueDate, hoursTotal, gradePercent, effort };
 }
