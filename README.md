@@ -30,11 +30,8 @@
 
 ## Getting Started
 
-Below are the steps that are used to run the app:
+Try here: [BlockTime](https://rileygramlich.github.io/BlockTime/)
 
-1. **Using Git Bash, clone the repository:** git clone https://github.com/rileygramlich/BlockTime.git
-2. **Using Git Bash, Navigate to Directory:** cd BlockTime
-3. **Launch:** If the project is Static (HTML/JS), open index.html directly in your browser. If the project uses React/Node, run npm install followed by npm start
 
 ## Roadmap & Future Enhancements
 
@@ -43,9 +40,8 @@ Below are the steps that are used to run the app:
 - **Calendar Integration:** Add calendar to your personal calendar.
 - **Visual Polish:** Enhance the text-based output into a drag-and-drop calendar interface.
 
-## Contributors & License
+## Contributors
 
 - **Front-End Developer:** [Riley Gramlich](https://github.com/rileygramlich)
 - **Javascript Developer:** [Abdul Mohammad](https://github.com/Exotiv-1)
 - **QA Analyst, Tester, and Documention:** [Khizar Baig](https://github.com/kbaig601)
-- **License:** Open Source (See LICENSE in repository, typically MIT for hackathon projects).
